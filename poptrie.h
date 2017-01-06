@@ -14,7 +14,7 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 
 
-#define POPTRIE_S               18
+#define POPTRIE_S               16
 #define POPTRIE_INIT_FIB_SIZE   4096
 
 #define popcnt(v)               __builtin_popcountll(v)

@@ -29,7 +29,6 @@ struct poptrie_stack {
     poptrie_leaf_t nexthop;
 };
 
-
 /* Prototype declarations */
 static int
 _route_add(struct poptrie *, struct radix_node **, u32, int, poptrie_leaf_t,
@@ -123,11 +122,18 @@ poptrie_init(struct poptrie *poptrie, int sz1, int sz0)
 
     /* Allocate the nodes and leaves */
     poptrie->nodes = malloc(sizeof(poptrie_node_t) * (1 << sz1));
+    for (int i = 0; i < (1 << sz1); i++) {
+        poptrie->nodes[i].base0 = -1;
+        poptrie->nodes[i].base1 = -1;
+    }
     if ( NULL == poptrie->nodes ) {
         poptrie_release(poptrie);
         return NULL;
     }
     poptrie->leaves = malloc(sizeof(poptrie_leaf_t) * (1 << sz0));
+    for (int i = 0; i < (1 << sz0); i++) {
+        poptrie->leaves[i] = 0xFFFF;
+    }
     if ( NULL == poptrie->leaves ) {
         poptrie_release(poptrie);
         return NULL;
@@ -444,6 +450,8 @@ _update_part(struct poptrie *poptrie, struct radix_node *tnode, int inode,
                 _update_clean_subtree(poptrie, oroot);
                 if ( (int)oroot >= 0 ) {
                     buddy_free2(poptrie->cnodes, oroot);
+                    poptrie->nodes[oroot].base0 = -1;
+                    poptrie->nodes[oroot].base1 = -1;
                 }
             }
 
@@ -863,6 +871,8 @@ _update_subtree(struct poptrie *poptrie, struct radix_node *node, u32 prefix,
                      && !(poptrie->altdir[idx + i] & ((u32)1 << 31)) ) {
                     _update_clean_subtree(poptrie, poptrie->altdir[idx + i]);
                     buddy_free2(poptrie->cnodes, poptrie->altdir[idx + i]);
+                    poptrie->nodes[poptrie->altdir[idx + i]].base0 = -1;
+                    poptrie->nodes[poptrie->altdir[idx + i]].base1 = -1;
                 } else if ( !(poptrie->altdir[idx + i] & ((u32)1 << 31)) ) {
                     _update_clean_root(poptrie, poptrie->dir[idx + i],
                                        poptrie->altdir[idx + i]);
@@ -996,6 +1006,7 @@ _update_inode_chunk(struct poptrie *poptrie, struct radix_node *node, int inode,
     if ( ret > 0 ) {
         /* Clean */
         buddy_free2(poptrie->cleaves, nodes[0].base0);
+        nodes[0].base0 = -1;
     }
 
     return ret;
@@ -1198,6 +1209,7 @@ _update_inode(struct poptrie *poptrie, struct radix_node *node, int inode,
         if ( base0 < 0 ) {
             if ( base1 >= 0 ) {
                 buddy_free2(poptrie->cnodes, base1);
+                base1 = -1;
             }
             return -1;
         }
@@ -1262,6 +1274,8 @@ _update_dp1(struct poptrie *poptrie, struct radix_node *tnode, int alt,
                     _update_clean_subtree(poptrie, poptrie->dir[idx + i]);
                     if ( (int)poptrie->dir[idx + i] >= 0 ) {
                         buddy_free2(poptrie->cnodes, poptrie->dir[idx + i]);
+                        poptrie->nodes[poptrie->dir[idx + i]].base0 = -1;
+                        poptrie->nodes[poptrie->dir[idx + i]].base1 = -1;
                     }
                 }
             }
@@ -1284,6 +1298,8 @@ _update_dp1(struct poptrie *poptrie, struct radix_node *tnode, int alt,
                     _update_clean_subtree(poptrie, poptrie->dir[idx + i]);
                     if ( (int)poptrie->dir[idx + i] >= 0 ) {
                         buddy_free2(poptrie->cnodes, poptrie->dir[idx + i]);
+                        poptrie->nodes[poptrie->dir[idx + i]].base0 = -1;
+                        poptrie->nodes[poptrie->dir[idx + i]].base1 = -1;
                     }
                 }
             }
@@ -1339,6 +1355,8 @@ _update_dp2(struct poptrie *poptrie, struct radix_node *tnode, int alt,
                 _update_clean_subtree(poptrie, poptrie->dir[idx + i]);
                 if ( (int)poptrie->dir[idx + i] >= 0 ) {
                     buddy_free2(poptrie->cnodes, poptrie->dir[idx + i]);
+                    poptrie->nodes[poptrie->dir[idx + i]].base0 = -1;
+                    poptrie->nodes[poptrie->dir[idx + i]].base1 = -1;
                 }
             }
         }
@@ -1359,6 +1377,8 @@ _update_dp2(struct poptrie *poptrie, struct radix_node *tnode, int alt,
                 _update_clean_subtree(poptrie, poptrie->dir[idx + i]);
                 if ( (int)poptrie->dir[idx + i] >= 0 ) {
                     buddy_free2(poptrie->cnodes, poptrie->dir[idx + i]);
+                    poptrie->nodes[poptrie->dir[idx + i]].base0 = -1;
+                    poptrie->nodes[poptrie->dir[idx + i]].base1 = -1;
                 }
             }
         }
@@ -1397,14 +1417,18 @@ _update_clean_root(struct poptrie *poptrie, int nroot, int oroot)
     if ( poptrie->nodes[nroot].base1 != poptrie->nodes[oroot].base1
          && (u32)-1 != poptrie->nodes[oroot].base1 ) {
         buddy_free2(poptrie->cnodes, poptrie->nodes[oroot].base1);
+        poptrie->nodes[oroot].base1 = -1;
     }
     if ( poptrie->nodes[nroot].base0 != poptrie->nodes[oroot].base0
          && (u32)-1 != poptrie->nodes[oroot].base0 ) {
         buddy_free2(poptrie->cleaves, poptrie->nodes[oroot].base0);
+        poptrie->nodes[oroot].base0 = -1;
     }
     /* Clear */
     if ( oroot != nroot ) {
         buddy_free2(poptrie->cnodes, oroot);
+        poptrie->nodes[oroot].base0 = -1;
+        poptrie->nodes[oroot].base1 = -1;
     }
 }
 
@@ -1432,6 +1456,8 @@ _update_clean_node(struct poptrie *poptrie, poptrie_node_t *node, int oinode)
     /* Clear */
     if ( (int)node->base1 != oinode ) {
          buddy_free2(poptrie->cnodes, oinode);
+         poptrie->nodes[oinode].base0 = -1;
+         poptrie->nodes[oinode].base1 = -1;
     }
 }
 static void
@@ -1468,10 +1494,12 @@ _update_clean_inode(struct poptrie *poptrie, int ninode, int oinode)
         if ( (u32)-1 != poptrie->nodes[oinode].base1
              && poptrie->nodes[oinode].base1 != poptrie->nodes[ninode].base1 ) {
             buddy_free2(poptrie->cnodes, poptrie->nodes[oinode].base1);
+            poptrie->nodes[oinode].base1 = -1;
         }
         if ( (u32)-1 != poptrie->nodes[oinode].base0
              && poptrie->nodes[oinode].base0 != poptrie->nodes[ninode].base0 ) {
             buddy_free2(poptrie->cleaves, poptrie->nodes[oinode].base0);
+            poptrie->nodes[oinode].base0 = -1;
         }
     } else {
         obase = poptrie->nodes[oinode].base1;
@@ -1484,9 +1512,11 @@ _update_clean_inode(struct poptrie *poptrie, int ninode, int oinode)
 
         if ( (u32)-1 != poptrie->nodes[oinode].base1 ) {
             buddy_free2(poptrie->cnodes, poptrie->nodes[oinode].base1);
+            poptrie->nodes[oinode].base1 = -1;
         }
         if ( (u32)-1 != poptrie->nodes[oinode].base0 ) {
             buddy_free2(poptrie->cleaves, poptrie->nodes[oinode].base0);
+            poptrie->nodes[oinode].base0 = -1;
         }
     }
 }
@@ -1518,10 +1548,12 @@ _update_clean_subtree(struct poptrie *poptrie, int oinode)
     /* Clear */
     if ( (int)node->base1 >= 0 ) {
         buddy_free2(poptrie->cnodes, node->base1);
+        node->base1 = -1;
     }
 
     if ( (int)node->base0 >= 0 ) {
         buddy_free2(poptrie->cleaves, node->base0);
+        node->base0 = -1;
     }
 }
 

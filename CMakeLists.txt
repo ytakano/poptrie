@@ -13,6 +13,7 @@ add_library(poptrie_static STATIC poptrie.c poptrie6.c buddy.c)
 
 add_executable(poptrie_test_basic tests/basic.c poptrie.c poptrie6.c buddy.c)
 add_executable(poptrie_test_basic6 tests/basic6.c poptrie.c poptrie6.c buddy.c)
+add_executable(poptrie_memfoot poptrie.c poptrie6.c buddy.c main.c)
 
 INSTALL(TARGETS poptrie poptrie_static RUNTIME DESTINATION bin
                                        LIBRARY DESTINATION lib
